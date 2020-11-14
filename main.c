@@ -10,7 +10,7 @@ For the language grammar, please refer to Grammar section on the github page:
 
 #define MAX_LENGTH 200
 typedef enum {
-	//0     1    2    3    4    5    6       7       8        9        10          11        12    13    14    15
+  //0       1    2    3    4    5    6       7       8        9        10          11        12    13    14    15
 	ASSIGN, ADD, SUB, MUL, DIV, REM, PREINC, PREDEC, POSTINC, POSTDEC, IDENTIFIER, CONSTANT, LPAR, RPAR, PLUS, MINUS
 } Kind;
 typedef enum {
@@ -69,6 +69,18 @@ void codegen(AST *root);
 // Free the whole AST.
 void freeAST(AST *now);
 
+//my func
+int find_empty_register(int* arr){
+	int empty = 0;
+	for(empty = 0; empty < 256; empty++){
+		if(arr[empty] == 0){
+			break;
+		} else;
+	}
+	return empty;
+}
+
+
 /// debug interfaces
 
 // Print token array.
@@ -82,15 +94,21 @@ int main() {
 	while (fgets(input, MAX_LENGTH, stdin) != NULL) {
 		Token *content = lexer(input);
 		size_t len = token_list_to_arr(&content);
-		AST *ast_root = parser(content, len);
-		semantic_check(ast_root);
-		//codegen(ast_root);
-
+		
 		// for debug
-		token_print(content, len);
-		AST_print(ast_root);
-		//debug END
+		//token_print(content, len);
 
+		AST *ast_root = parser(content, len);
+		
+		// for debug
+		//AST_print(ast_root);
+
+		semantic_check(ast_root);
+
+		codegen(ast_root);
+		
+		
+		
 		free(content);
 		freeAST(ast_root);
 	}
@@ -192,6 +210,10 @@ AST *parser(Token *arr, size_t len) {
 			}
 		}
 	}
+
+	// for debug
+	//token_print(arr, len);
+
 	return parse(arr, 0, len - 1, STMT);
 }
 
@@ -252,6 +274,7 @@ AST *parse(Token *arr, int l, int r, GrammarState S) {
 			}
 			return parse(arr, l, r, UNARY_EXPR);
 			// END
+
 		case UNARY_EXPR:
 			// TODO: Implement UNARY_EXPR.
 			// hint: Take POSTFIX_EXPR as reference.
@@ -262,13 +285,14 @@ AST *parse(Token *arr, int l, int r, GrammarState S) {
     		| PLUS UNARY_EXPR
     		| MINUS UNARY_EXPR
 			*/
-			if ((arr[l].kind == PREINC || arr[l].kind == PREDEC || arr[l].kind == PLUS || arr[l].kind == MINUS) && (arr[l+1].kind == IDENTIFIER || arr[l+1].kind == CONSTANT || arr[l+1].kind == LPAR)) {
+			if (arr[l].kind == PREINC || arr[l].kind == PREDEC || arr[l].kind == PLUS || arr[l].kind == MINUS) {
 				now = new_AST(arr[l].kind, 0);
 				now->mid = parse(arr, l + 1, r, UNARY_EXPR); // 存在 now.mid 中
 				return now;
 			}
 			return parse(arr, l, r, POSTFIX_EXPR);
 			// END
+
 		case POSTFIX_EXPR:
 			/*
 			→ PRI_EXPR
@@ -371,23 +395,255 @@ void codegen(AST *root) {
 	// TODO: Implement your codegen in your own way.
 	// You may modify the function parameter or the return type, even the whole structure as you wish.
 	/*
-	x = [0]
-	y = [4]
-	z = [8]
-
+	x = [0] y = [4] z = [8]
 	r0 - r8
 
 	ASSIGN, ADD, SUB, MUL, DIV, REM, PREINC, PREDEC, POSTINC, POSTDEC, IDENTIFIER, CONSTANT, LPAR, RPAR, PLUS, MINUS
 	*/
+	static int initial = 1;
+	static int r = 0;
+	static int use[256] = {0};
 	if(root == NULL) return;
 	else;
 	Kind K = root->kind;
+	AST *tmp = NULL;
+
+	int r_left;
+	int r_right;
+
+	if(initial){
+		printf("load r0 [0]\n");
+		printf("load r1 [4]\n");
+		printf("load r2 [8]\n");
+		use[0] = use[1] = use[2] = 1;
+		initial = 0;
+		// check if the statement is an assign_expression
+		if(root->kind != ASSIGN){
+			codegen(root);
+			// store r1 r2 r3 back to x y z
+			printf("store [0] r0\n");
+			printf("store [4] r1\n");
+			printf("store [8] r2\n");
+			initial = 1;
+			return;
+		} else;
+	} else;
+
 	switch(K){
 		case ASSIGN:
-			printf("store r0 into "%c"\n", );
+			// calculate right side
+			codegen(root->rhs);
+
+			// find the IDENTIFIER at the left side
+			tmp = root->lhs;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			printf("store [%d] r%d\n", ((tmp->val)-120)*4, r);
+			// update use[]
+			use[r] = 0;
+
+			// store r1 r2 r3 back to x y z
+			for(int i = 0; i < 3; i++){
+				if(i != ((tmp->val)-120)){
+					printf("store [%d] r%d\n", i*4, i);
+				} else;
+			}
+			// prepare next round
+			// reset initial
+			initial = 1;
+			
+			break;
+
 		case ADD:
+			//calculate left side
+			codegen(root->lhs);
+			r_left = r;
+			// calculate right side
+			codegen(root->rhs);
+			r_right = r;
+			// calculate left and right
+			printf("add r%d r%d r%d\n", r_right, r_left, r_right);
+			//update use[]
+			use[r_left] = 0;
+			break;
+
+		case SUB:
+			//calculate left side
+			codegen(root->lhs);
+			r_left = r;
+			// calculate right side
+			codegen(root->rhs);
+			r_right = r;
+			// calculate left and right
+			printf("sub r%d r%d r%d\n", r_right, r_left, r_right);
+			//update use[]
+			use[r_left] = 0;
+			break;
+
+		case MUL:
+			//calculate left side
+			codegen(root->lhs);
+			r_left = r;
+			// calculate right side
+			codegen(root->rhs);
+			r_right = r;
+			// calculate left and right
+			printf("mul r%d r%d r%d\n", r_right, r_left, r_right);
+			//update use[]
+			use[r_left] = 0;
+			break;
+
+		case DIV:
+			//calculate left side
+			codegen(root->lhs);
+			r_left = r;
+			// calculate right side
+			codegen(root->rhs);
+			r_right = r;
+			// calculate left and right
+			printf("div r%d r%d r%d\n", r_right, r_left, r_right);
+			//update use[]
+			use[r_left] = 0;
+			break;
+			
+		case REM:
+			//calculate left side
+			codegen(root->lhs);
+			r_left = r;
+			// calculate right side
+			codegen(root->rhs);
+			r_right = r;
+			// calculate left and right
+			printf("rem r%d r%d r%d\n", r_right, r_left, r_right);
+			//update use[]
+			use[r_left] = 0;
+			break;
+
+		case PREINC:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			// find IDENTIFIER
+			// calculate, then take out the value of IDENTIFIER
+			printf("add r%d r%d 1\n", (tmp->val)-120, (tmp->val)-120);
+			r = find_empty_register(use);
+			printf("add r%d r%d 0\n", r, (tmp->val)-120);
+			//update use[]
+			use[r] = 1;
+			break;
+
+		case PREDEC:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			// find IDENTIFIER
+			// calculate, then take out the value of IDENTIFIER
+			printf("sub r%d r%d 1\n", (tmp->val)-120, (tmp->val)-120);
+			r = find_empty_register(use);
+			printf("add r%d r%d 0\n", r, (tmp->val)-120);
+			//update use[]
+			use[r] = 1;
+			break;
+
+		case POSTINC:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			// find IDENTIFIER
+			// take out the value of IDENTIFIER, then calculate
+			r = find_empty_register(use);
+			printf("add r%d r%d 0\n", r, (tmp->val)-120);
+			//update use[]
+			use[r] = 1;
+			printf("add r%d r%d 1\n", (tmp->val)-120, (tmp->val)-120);
+			break;
+			
+		case POSTDEC:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			// find IDENTIFIER
+			// take out the value of IDENTIFIER, then calculate
+			r = find_empty_register(use);
+			printf("add r%d r%d 0\n", r, (tmp->val)-120);
+			//update use[]
+			use[r] = 1;
+			printf("sub r%d r%d 1\n", (tmp->val)-120, (tmp->val)-120);
+			break;
+
+		case PLUS:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			codegen(tmp);
+			printf("add r%d r%d 0\n", r, r);
+			break;
+
+		case MINUS:
+			// find the IDENTIFIER at the mid
+			tmp = root->mid;
+			// skip all the LPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			codegen(tmp);
+			int r_tmp = find_empty_register(use);
+			printf("mul r%d r%d 2\n", r_tmp, r);
+			printf("sub r%d r%d r%d\n", r, r, r_tmp);
+			break;
+
+		case IDENTIFIER:
+			r = find_empty_register(use);
+			printf("add r%d r%d 0\n", r, (root->val)-120);
+			//update use[]
+			use[r] = 1;
+			break;
+
+		case CONSTANT:
+			r = find_empty_register(use);
+			printf("add r%d %d 0\n", r, root->val);
+			//update use[]
+			use[r] = 1;
+			break;
+
+		case LPAR:
+			tmp = root->mid;
+			// skip all the RPAR
+			while(tmp->kind == LPAR){
+				tmp = tmp->mid;
+			}
+			codegen(tmp);
+			break;
+
+		default:
+			break;
 	}
 
+	/*
+	// for debug
+	// check use[]
+	for(int i = 0; i < 10; i++){
+		printf("%d ", use[i]);
+	}
+	printf("\n");
+	*/
 }
 
 void freeAST(AST *now) {
