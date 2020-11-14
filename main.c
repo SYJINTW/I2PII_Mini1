@@ -14,6 +14,7 @@ typedef enum {
 	ASSIGN, ADD, SUB, MUL, DIV, REM, PREINC, PREDEC, POSTINC, POSTDEC, IDENTIFIER, CONSTANT, LPAR, RPAR, PLUS, MINUS
 } Kind;
 typedef enum {
+  //0     1     2            3         4         5           6             7 
 	STMT, EXPR, ASSIGN_EXPR, ADD_EXPR, MUL_EXPR, UNARY_EXPR, POSTFIX_EXPR, PRI_EXPR
 } GrammarState;
 typedef struct TokenUnit {
@@ -39,7 +40,7 @@ typedef struct ASTUnit {
 	exit(0);\
 }
 // You may set DEBUG=1 to debug. Remember setting back to 0 before submit.
-#define DEBUG 1
+#define DEBUG 0
 // Split the input char array into token linked list.
 Token *lexer(const char *in);
 // Create a new token.
@@ -69,7 +70,9 @@ void codegen(AST *root);
 // Free the whole AST.
 void freeAST(AST *now);
 
-//my func
+// my func
+
+// find the small empty register, so that can minimize the usage of register
 int find_empty_register(int* arr){
 	int empty = 0;
 	for(empty = 0; empty < 256; empty++){
@@ -104,10 +107,7 @@ int main() {
 		//AST_print(ast_root);
 
 		semantic_check(ast_root);
-
 		codegen(ast_root);
-		
-		
 		
 		free(content);
 		freeAST(ast_root);
@@ -396,10 +396,13 @@ void codegen(AST *root) {
 	// You may modify the function parameter or the return type, even the whole structure as you wish.
 	/*
 	x = [0] y = [4] z = [8]
-	r0 - r8
+	r0 - r255
 
+	initial == 1 -> need to initize
+	
 	ASSIGN, ADD, SUB, MUL, DIV, REM, PREINC, PREDEC, POSTINC, POSTDEC, IDENTIFIER, CONSTANT, LPAR, RPAR, PLUS, MINUS
 	*/
+
 	static int initial = 1;
 	static int r = 0;
 	static int use[256] = {0};
@@ -411,7 +414,7 @@ void codegen(AST *root) {
 	int r_left;
 	int r_right;
 
-	if(initial){
+	if(initial == 1){
 		printf("load r0 [0]\n");
 		printf("load r1 [4]\n");
 		printf("load r2 [8]\n");
@@ -440,18 +443,34 @@ void codegen(AST *root) {
 			while(tmp->kind == LPAR){
 				tmp = tmp->mid;
 			}
-			printf("store [%d] r%d\n", ((tmp->val)-120)*4, r);
-			// update use[]
-			use[r] = 0;
 
-			// store r1 r2 r3 back to x y z
-			for(int i = 0; i < 3; i++){
-				if(i != ((tmp->val)-120)){
-					printf("store [%d] r%d\n", i*4, i);
-				} else;
+			// check if have multiple of ASSIGN
+			// initial == 0 means the ASSIGN that is at the left side (maybe the only one and maybe not)
+			// initial == 1 means there are more than one ASSIGN (maybe the last one)
+			if(initial == 0){
+				printf("store [%d] r%d\n", ((tmp->val)-120)*4, r);
+				// update use[]
+				use[r] = 0;
+
+				// store r1 r2 r3 back to x y z
+				for(int i = 0; i < 3; i++){
+					if(i != ((tmp->val)-120)){
+						printf("store [%d] r%d\n", i*4, i);
+					} else;
+				}
 			}
-			// prepare next round
+			else if(initial == 1){
+				/* 
+				actually use[r] is been set to 0 
+				but we can still use r
+				because the left side of ASSIGN can only be IDENTIFIER
+				so that we will not change the value of r
+				*/
+				printf("store [%d] r%d\n", ((tmp->val)-120)*4, r);
+			}
+
 			// reset initial
+			// also mark that there are more than one ASSIGN
 			initial = 1;
 			
 			break;
