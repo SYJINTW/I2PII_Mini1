@@ -10,4 +10,5 @@ if commit_flag == 1:
 	os.system('git commit -m "' + commit_cmd + '"')	
 if push_flag == 1:
 		os.system("git push -u origin master")
+os.system("git status")
 print("Finish")
