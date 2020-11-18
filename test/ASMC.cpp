@@ -226,7 +226,7 @@ int main(int argc, char **argv)
     if(argc == 4)
         for(int i=1; i<argc; i++)
             init.emplace_back(atoi(argv[i]));
-    else init = {2, 3, 5};
+    else init = {82, 10, 7};
     string str;
     int lines = 1;
     while(getline(cin, str))

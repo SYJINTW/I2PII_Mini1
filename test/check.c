@@ -1,9 +1,9 @@
 #include <stdio.h>
 int main(){
-	int testcase = 0;
-	int x = 2;
-	int y = 3;
-	int z = 5;
+	//int testcase = 0;
+	int x = 82, y = 10, z = 7;
+
+	/*
 	scanf("%d", &testcase);
 
 	switch(testcase){
@@ -72,6 +72,13 @@ int main(){
 		default:
 			break;
 		}
-
+		*/
+	y+5*x-2+z*3;
+x=5;
+y=6;
+x=(3+5)-8*(10/2);
+y=x*x-(12*12);
+z=z/z+(+-+-+-+-z-z)+(x*z)%z+(y+z)*0-x*y;
+x=(-y*-y-(y*y-4*x*z))/(2*x*2*x);
 	printf("%d %d %d\n", x, y, z);
 }
